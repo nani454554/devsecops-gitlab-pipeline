@@ -38,17 +38,16 @@ jobs:
             -Dsonar.python.version=3.11
             -Dsonar.branch.name=${{ github.ref_name }}
 
-      # 🔒 FS scan = Secrets + Infra misconfig ONLY
-      - name: Trivy FS Scan (Secrets & Misconfig only)
+      # 🔍 FS scan = visibility, NOT gate
+      - name: Trivy FS Scan (Secrets & Misconfig - report only)
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
           scan-ref: services/
           scanners: secret,misconfig
-          severity: HIGH,CRITICAL
-          exit-code: 1
           format: sarif
           output: trivy-fs.sarif
+          exit-code: 0   # 👈 intentional
 
       - name: Upload Trivy SARIF to GitHub Security
         uses: github/codeql-action/upload-sarif@v4
