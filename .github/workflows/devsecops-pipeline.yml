@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [dev]
 
+# 🔐 REQUIRED PERMISSIONS (CRITICAL FIX)
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 env:
   REGISTRY: docker.io
   IMAGE_NAMESPACE: ${{ secrets.DOCKER_USERNAME }}
@@ -21,9 +27,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # --------------------
-      # SonarCloud (Code SAST)
-      # --------------------
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@v2
         env:
@@ -36,43 +39,22 @@ jobs:
             -Dsonar.python.version=3.11
             -Dsonar.branch.name=${{ github.ref_name }}
 
-      # --------------------
-      # Trivy FS – Secrets (HARD GATE)
-      # --------------------
-      - name: Trivy FS Scan - Secrets
+      # FS scan = secrets + misconfig ONLY (correct stage)
+      - name: Trivy FS Scan (Secrets & Misconfig)
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
           scan-ref: services/
-          scanners: secret
+          scanners: secret,config
           severity: HIGH,CRITICAL
           exit-code: 1
           format: sarif
           output: trivy-fs-secrets.sarif
 
-      - name: Upload Trivy Secret Scan Results
-        uses: github/codeql-action/upload-sarif@v3
+      - name: Upload Trivy SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-fs-secrets.sarif
-
-      # --------------------
-      # Trivy FS – Misconfig (CONTROLLED GATE)
-      # --------------------
-      - name: Trivy FS Scan - Misconfiguration
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: fs
-          scan-ref: services/
-          scanners: misconfig
-          severity: HIGH,CRITICAL
-          exit-code: 1
-          format: sarif
-          output: trivy-fs-misconfig.sarif
-
-      - name: Upload Trivy Misconfig Results
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: trivy-fs-misconfig.sarif
 
   build:
     name: Build services
