@@ -33,14 +33,14 @@ jobs:
             -Dsonar.python.version=3.11
             -Dsonar.branch.name=${{ github.ref_name }}
 
-      - name: Trivy FS Scan (SAST support)
+      # 🔒 FS scan = secrets & config only (CORRECT)
+      - name: Trivy FS Scan (Secrets & Misconfig)
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
           scan-ref: services/
-          scanners: vuln,secret
+          scanners: secret,config
           severity: HIGH,CRITICAL
-          ignore-unfixed: true
           exit-code: 1
           format: sarif
           output: trivy-fs.sarif
