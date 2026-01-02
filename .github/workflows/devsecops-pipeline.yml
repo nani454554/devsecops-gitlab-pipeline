@@ -6,6 +6,7 @@ on:
   pull_request:
     branches: [dev]
 
+# 🔐 Required permissions for security uploads
 permissions:
   contents: read
   security-events: write
@@ -16,15 +17,16 @@ env:
   IMAGE_NAMESPACE: ${{ secrets.DOCKER_USERNAME }}
 
 jobs:
-  # ------------------------
-  # SAST
-  # ------------------------
+  # =====================================================
+  # SAST – Source Code Security
+  # =====================================================
   sast:
     name: SAST - Source Code Security
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout source
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -40,7 +42,8 @@ jobs:
             -Dsonar.python.version=3.11
             -Dsonar.branch.name=${{ github.ref_name }}
 
-      - name: Trivy FS Scan (Secrets & Misconfig - report only)
+      # FS scan is VISIBILITY only (no blocking)
+      - name: Trivy FS Scan (Secrets & Misconfig - Report Only)
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
@@ -50,20 +53,22 @@ jobs:
           output: trivy-fs.sarif
           exit-code: 0
 
-      - uses: github/codeql-action/upload-sarif@v4
+      - name: Upload Trivy FS SARIF
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-fs.sarif
 
-  # ------------------------
-  # SCA
-  # ------------------------
+  # =====================================================
+  # SCA – Dependency Risk (Hard Gate)
+  # =====================================================
   sca:
     name: SCA - Dependency Vulnerability Scan
     runs-on: ubuntu-latest
     needs: sast
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout source
+        uses: actions/checkout@v4
 
       - name: OWASP Dependency-Check
         uses: dependency-check/Dependency-Check_Action@main
@@ -76,18 +81,20 @@ jobs:
             --enableExperimental
             --failOnCVSS 7
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload Dependency-Check HTML Report
+        uses: actions/upload-artifact@v4
         with:
           name: dependency-check-html
           path: dependency-check-report/dependency-check-report.html
 
-      - uses: github/codeql-action/upload-sarif@v4
+      - name: Upload Dependency-Check SARIF
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: dependency-check-report/dependency-check-report.sarif
 
-  # ------------------------
-  # IMAGE SECURITY
-  # ------------------------
+  # =====================================================
+  # IMAGE – Container Security (Hard Gate)
+  # =====================================================
   image:
     name: Image Scan & Push
     runs-on: ubuntu-latest
@@ -100,7 +107,8 @@ jobs:
           - health-service
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout source
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -115,15 +123,17 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: services/${{ matrix.service }}
-          push: false
           load: true
+          push: false
           tags: |
             ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}
 
-      - name: Trivy Image Scan (BLOCKING)
+      # 🔒 Image scan – block FIXABLE high/critical only
+      - name: Trivy Image Scan (Blocking)
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}
+          scanners: vuln
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           format: sarif
