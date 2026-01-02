@@ -10,7 +10,7 @@ permissions:
   contents: read
   security-events: write
   actions: read
-  id-token: write   # 🔐 REQUIRED FOR COSIGN OIDC
+  id-token: write   # REQUIRED for Cosign OIDC
 
 env:
   REGISTRY: docker.io
@@ -116,7 +116,6 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}
 
-      # 🔍 Image scan (visibility)
       - uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}
@@ -132,24 +131,22 @@ jobs:
         with:
           sarif_file: trivy-image.sarif
 
-      # 🚀 Push image
       - name: Push image
         run: |
           docker push ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}
 
-      # 🔐 Install Cosign
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3
 
-      # 🔏 Sign image (KEYLESS)
-      - name: Sign image with Cosign (OIDC)
+      - name: Sign image (Keyless OIDC)
         run: |
-          cosign sign \
-            --yes \
+          cosign sign --yes \
             ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}
 
-      # 🔍 Verify signature (proof)
-      - name: Verify image signature
+      # ✅ FIXED VERIFICATION
+      - name: Verify image signature (Keyless)
         run: |
           cosign verify \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp "^https://github.com/nani454554/devsecops-gitlab-pipeline/.*" \
             ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}
