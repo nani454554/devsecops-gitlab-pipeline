@@ -73,7 +73,7 @@ jobs:
         with:
           project: "devsecops-gitlab-pipeline"
           path: "services"
-          format: "HTML,SARIF"
+          format: "ALL"
           out: "dependency-check-report"
           args: >
             --enableExperimental
