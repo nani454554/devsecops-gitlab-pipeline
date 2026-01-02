@@ -110,7 +110,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
-            -Dsonar.projectKey=devsecops-gitlab-pipeline
+            -Dsonar.projectKey=nani454554_devsecops-gitlab-pipeline
             -Dsonar.organization=nani454554
             -Dsonar.sources=services
             -Dsonar.python.version=3.11
