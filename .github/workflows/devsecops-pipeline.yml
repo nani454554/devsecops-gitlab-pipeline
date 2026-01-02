@@ -1,4 +1,4 @@
-name: DevSecOps CI - Build + SAST + SCA + IMAGE
+name: DevSecOps CI - Build + SAST + SCA + IMAGE + SIGN
 
 on:
   push:
@@ -10,10 +10,12 @@ permissions:
   contents: read
   security-events: write
   actions: read
+  id-token: write   # 🔐 REQUIRED FOR COSIGN OIDC
 
 env:
   REGISTRY: docker.io
   IMAGE_NAMESPACE: ${{ secrets.DOCKER_USERNAME }}
+  COSIGN_EXPERIMENTAL: "true"
 
 jobs:
   # =======================
@@ -83,12 +85,12 @@ jobs:
           sarif_file: dependency-check-report/dependency-check-report.sarif
 
   # =======================
-  # IMAGE (REPORT-ONLY)
+  # IMAGE + SIGN
   # =======================
   image:
     runs-on: ubuntu-latest
     needs: sca
-    name: Image Scan & Push
+    name: Image Scan, Push & Sign
 
     strategy:
       matrix:
@@ -114,8 +116,8 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}
 
-      - name: Trivy Image Scan (Report Only)
-        uses: aquasecurity/trivy-action@master
+      # 🔍 Image scan (visibility)
+      - uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}
           scanners: vuln
@@ -130,6 +132,24 @@ jobs:
         with:
           sarif_file: trivy-image.sarif
 
+      # 🚀 Push image
       - name: Push image
         run: |
           docker push ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}
+
+      # 🔐 Install Cosign
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      # 🔏 Sign image (KEYLESS)
+      - name: Sign image with Cosign (OIDC)
+        run: |
+          cosign sign \
+            --yes \
+            ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}
+
+      # 🔍 Verify signature (proof)
+      - name: Verify image signature
+        run: |
+          cosign verify \
+            ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}
